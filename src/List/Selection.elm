@@ -158,10 +158,10 @@ map fn (Selection selectedItem items) =
 {-| Apply a function to all the items, treating the selected item
 specially.
 
-    fromList [1, 2, 3]
+    fromList [1, 2, 2]
         |> select 2
         |> mapSelected { selected = (*) 2, rest = identity }
-        |> toList --> [1, 4, 3]
+        |> toList --> [1, 4, 2]
 
 -}
 mapSelected : { selected : a -> b, rest : a -> b } -> Selection a -> Selection b
