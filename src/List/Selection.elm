@@ -1,16 +1,8 @@
-module List.Selection
-    exposing
-        ( Selection
-        , deselect
-        , filter
-        , fromList
-        , map
-        , mapSelected
-        , select
-        , selectBy
-        , selected
-        , toList
-        )
+module List.Selection exposing
+    ( Selection, fromList, toList
+    , select, selectBy, deselect, selected
+    , map, mapSelected, filter
+    )
 
 {-| This module exposes a list that has at most one selected item.
 
@@ -42,14 +34,14 @@ But, these only hold if there are no duplicates in your list.
 {-| A list of items, one of which _might_ be selected.
 -}
 type Selection a
-    = Selection (Maybe a) (List a)
+    = Selection Int (List a)
 
 
 {-| Create a `Selection a` with nothing selected.
 -}
 fromList : List a -> Selection a
 fromList items =
-    Selection Nothing items
+    Selection -1 items
 
 
 {-| Convert a Selection list back to a regular list. This is useful
@@ -104,9 +96,16 @@ selectBy : (a -> Bool) -> Selection a -> Selection a
 selectBy query (Selection original items) =
     Selection
         (items
-            |> List.filter query
+            |> List.indexedMap Tuple.pair
+            |> List.filterMap
+                (\( i, item ) ->
+                    if query item then
+                        Just i
+
+                    else
+                        Nothing
+                )
             |> List.head
-            |> Maybe.map Just
             |> Maybe.withDefault original
         )
         items
@@ -117,7 +116,7 @@ first place.
 -}
 deselect : Selection a -> Selection a
 deselect (Selection _ items) =
-    Selection Nothing items
+    Selection -1 items
 
 
 {-| Get the selected item, which might not exist.
@@ -128,8 +127,18 @@ deselect (Selection _ items) =
 
 -}
 selected : Selection a -> Maybe a
-selected (Selection selectedItem _) =
-    selectedItem
+selected (Selection selectedItem items) =
+    items
+        |> List.indexedMap Tuple.pair
+        |> List.filterMap
+            (\( i, item ) ->
+                if i == selectedItem then
+                    Just item
+
+                else
+                    Nothing
+            )
+        |> List.head
 
 
 {-| Apply a function to all the items.
@@ -142,7 +151,7 @@ selected (Selection selectedItem _) =
 map : (a -> b) -> Selection a -> Selection b
 map fn (Selection selectedItem items) =
     Selection
-        (Maybe.map fn selectedItem)
+        selectedItem
         (List.map fn items)
 
 
@@ -158,11 +167,12 @@ specially.
 mapSelected : { selected : a -> b, rest : a -> b } -> Selection a -> Selection b
 mapSelected mappers (Selection selectedItem items) =
     Selection
-        (Maybe.map mappers.selected selectedItem)
-        (List.map
-            (\item ->
-                if Just item == selectedItem then
+        selectedItem
+        (List.indexedMap
+            (\i item ->
+                if i == selectedItem then
                     mappers.selected item
+
                 else
                     mappers.rest item
             )
@@ -170,27 +180,55 @@ mapSelected mappers (Selection selectedItem items) =
         )
 
 
-{-| Filter all items where predicate evaluates to false, preserving selected item
-when unfiltered.
+{-| Filter all items where predicate evaluates to false.
 
-    fromList [1, 2, 3]
-        |> select 2
-        |> filter ((>) 2)
+    fromList [1, 2, 3]      -- (-1, [1,2,3])
+        |> select 2         -- (1, [1,2,3])
+        |> filter ((>) 2)   -- (-1, [1])
         |> toList --> [1]
+
+    Preserves selected item when unfiltered.
+
+    fromList [1,2,3]
+        |> select 1
+        |> filter (\x -> x <= 2)
+        |> selected --> Just 1
 
 -}
 filter : (a -> Bool) -> Selection a -> Selection a
-filter predicate (Selection selectedItem items) =
+filter predicate ((Selection selectedIndex items) as selection) =
     let
+        -- (new index, (old index, val))
+        filteredSelection : List ( Int, ( Int, a ) )
         filteredSelection =
             items
-                |> List.filter predicate
-                |> fromList
+                |> List.indexedMap Tuple.pair
+                |> List.filter (Tuple.second >> predicate)
+                |> List.indexedMap Tuple.pair
     in
-    case selectedItem of
-        Just selection ->
-            filteredSelection
-                |> select selection
+    Selection
+        (filteredSelection
+            |> List.filterMap
+                (\( new, ( old, _ ) ) ->
+                    if old == selectedIndex then
+                        Just new
 
-        Nothing ->
-            filteredSelection
+                    else
+                        Nothing
+                )
+            |> List.head
+            |> Maybe.withDefault -1
+        )
+        (filteredSelection
+            |> List.map (Tuple.second >> Tuple.second)
+        )
+
+
+
+-- case selectedItem of
+--     Just selection ->
+--         filteredSelection
+--             |> select selection
+--
+--     Nothing ->
+--         filteredSelection
