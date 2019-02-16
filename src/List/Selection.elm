@@ -222,13 +222,3 @@ filter predicate ((Selection selectedIndex items) as selection) =
         (filteredSelection
             |> List.map (Tuple.second >> Tuple.second)
         )
-
-
-
--- case selectedItem of
---     Just selection ->
---         filteredSelection
---             |> select selection
---
---     Nothing ->
---         filteredSelection
